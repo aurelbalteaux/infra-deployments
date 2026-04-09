@@ -33,17 +33,17 @@ func ResolveRef(ctx context.Context, repoRoot, ref string) (string, error) {
 	return strings.TrimSpace(string(out)), nil
 }
 
-// ChangedFiles returns the list of files changed between baseRef and HEAD.
-// It uses a two-point diff (baseRef HEAD) which compares the full trees.
-// For accurate results the caller should ensure HEAD is a merge commit that
+// ChangedFiles returns the list of files changed between baseRef and targetRef.
+// It uses a two-point diff (baseRef targetRef) which compares the full trees.
+// For accurate results the caller should ensure targetRef is a merge commit that
 // incorporates baseRef (e.g. GitHub's refs/pull/N/merge), so the diff
 // naturally contains only the PR's own changes.
-func ChangedFiles(ctx context.Context, repoRoot, baseRef string) ([]string, error) {
-	cmd := exec.CommandContext(ctx, "git", "diff", "--name-only", baseRef, "HEAD")
+func ChangedFiles(ctx context.Context, repoRoot, baseRef, targetRef string) ([]string, error) {
+	cmd := exec.CommandContext(ctx, "git", "diff", "--name-only", baseRef, targetRef)
 	cmd.Dir = repoRoot
 	out, err := cmd.Output()
 	if err != nil {
-		return nil, fmt.Errorf("git diff %s HEAD: %w", baseRef, err)
+		return nil, fmt.Errorf("git diff %s %s: %w", baseRef, targetRef, err)
 	}
 	lines := strings.Split(strings.TrimSpace(string(out)), "\n")
 	var files []string

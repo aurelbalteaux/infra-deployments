@@ -20,10 +20,10 @@ const (
 
 // runAllOutputModes runs every configured output mode against the given result.
 // Returns true if any mode failed.
-func runAllOutputModes(ctx context.Context, modes []OutputMode, result *renderdiff.DiffResult, colorMode string, openDiff bool, outputDir, headSHA, baseSHA string) bool {
+func runAllOutputModes(ctx context.Context, modes []OutputMode, result *renderdiff.DiffResult, colorMode string, openDiff bool, outputDir, targetSHA, baseSHA string) bool {
 	var hadError bool
 	for _, m := range modes {
-		if err := runOutputMode(ctx, m, result, colorMode, openDiff, outputDir, headSHA, baseSHA); err != nil {
+		if err := runOutputMode(ctx, m, result, colorMode, openDiff, outputDir, targetSHA, baseSHA); err != nil {
 			slog.Error("output mode failed", "mode", m, "err", err)
 			hadError = true
 		}

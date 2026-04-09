@@ -16,7 +16,7 @@ import (
 // runOutputMode executes a single output mode against a pre-computed result.
 // Returns an error instead of calling Fatal, so the caller can continue with
 // remaining modes.
-func runOutputMode(ctx context.Context, mode OutputMode, result *renderdiff.DiffResult, colorMode string, openDiff bool, outputDir, headSHA, baseSHA string) error {
+func runOutputMode(ctx context.Context, mode OutputMode, result *renderdiff.DiffResult, colorMode string, openDiff bool, outputDir, targetSHA, baseSHA string) error {
 	switch mode {
 	case OutputModeLocal:
 		useColor := shouldUseColor(colorMode)
@@ -40,7 +40,7 @@ func runOutputMode(ctx context.Context, mode OutputMode, result *renderdiff.Diff
 			return err
 		}
 	case OutputModeCIComment:
-		if err := postCIComment(ctx, result, headSHA, baseSHA); err != nil {
+		if err := postCIComment(ctx, result, targetSHA, baseSHA); err != nil {
 			return err
 		}
 	case OutputModeCIArtifact:
@@ -120,13 +120,13 @@ func writeCISummary(result *renderdiff.DiffResult) error {
 //
 // If any of the required vars (token, repo, PR) are missing, the comment body
 // is printed to stdout instead.
-func postCIComment(ctx context.Context, result *renderdiff.DiffResult, headSHA, baseSHA string) error {
+func postCIComment(ctx context.Context, result *renderdiff.DiffResult, targetSHA, baseSHA string) error {
 	runURL := buildRunURL(
 		os.Getenv("GITHUB_SERVER_URL"),
 		os.Getenv("GITHUB_REPOSITORY"),
 		os.Getenv("GITHUB_RUN_ID"),
 	)
-	body := buildCommentBody(result, headSHA, baseSHA, runURL)
+	body := buildCommentBody(result, targetSHA, baseSHA, runURL)
 
 	token := os.Getenv("GITHUB_TOKEN")
 	repo := os.Getenv("GITHUB_REPOSITORY")
@@ -166,13 +166,13 @@ func buildRunURL(serverURL, repo, runID string) string {
 // buildCommentBody generates the markdown for a PR comment.
 // When runURL is non-empty, the workflow summary link points directly to the
 // specific run; otherwise it falls back to the relative ../actions link.
-func buildCommentBody(result *renderdiff.DiffResult, headSHA, baseSHA, runURL string) string {
+func buildCommentBody(result *renderdiff.DiffResult, targetSHA, baseSHA, runURL string) string {
 	var b strings.Builder
 
 	fmt.Fprintln(&b, "<!-- render-diff-comment -->")
 	fmt.Fprintln(&b, "### Kustomize Render Diff")
 	fmt.Fprintln(&b)
-	fmt.Fprintf(&b, "Comparing `%s` → `%s`\n\n", baseSHA, headSHA)
+	fmt.Fprintf(&b, "Comparing `%s` → `%s`\n\n", baseSHA, targetSHA)
 
 	if len(result.Diffs) == 0 {
 		fmt.Fprintln(&b, "No render differences detected.")

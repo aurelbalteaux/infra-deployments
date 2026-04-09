@@ -25,6 +25,7 @@ func main() {
 	var (
 		repoRoot    = flag.String("repo-root", "", "Path to the repository root (default: auto-detect via git)")
 		baseRef     = flag.String("base-ref", "", "Base git ref to compare against (default: merge-base with main)")
+		targetRef   = flag.String("target-ref", "", "Target git ref to compare (default: HEAD)")
 		overlaysDir = flag.String("overlays-dir", "argo-cd-apps/overlays", "Path to overlays directory relative to repo root")
 		color       = flag.String("color", "auto", "Color output: auto, always, never")
 		openDiff    = flag.Bool("open", false, "Open diffs in $DIFFTOOL or git difftool")
@@ -96,14 +97,20 @@ func main() {
 		logging.Fatal("resolving base ref", "err", err)
 	}
 
-	headSHA, err := git.ResolveRef(ctx, absRepoRoot, "HEAD")
-	if err != nil {
-		logging.Fatal("resolving HEAD", "err", err)
+	// Resolve target ref: default to HEAD
+	effectiveTargetRef := *targetRef
+	if effectiveTargetRef == "" {
+		effectiveTargetRef = "HEAD"
 	}
-	slog.Info("Comparing refs", "head", headSHA, "base", baseSHA)
+
+	targetSHA, err := git.ResolveRef(ctx, absRepoRoot, effectiveTargetRef)
+	if err != nil {
+		logging.Fatal("resolving target ref", "err", err)
+	}
+	slog.Info("Comparing refs", "target", targetSHA, "base", baseSHA)
 
 	// Step 1: Get changed files
-	changedFiles, err := git.ChangedFiles(ctx, absRepoRoot, effectiveBaseRef)
+	changedFiles, err := git.ChangedFiles(ctx, absRepoRoot, effectiveBaseRef, effectiveTargetRef)
 	if err != nil {
 		logging.Fatal("getting changed files", "err", err)
 	}
@@ -111,7 +118,7 @@ func main() {
 		fmt.Println("No changed files detected — nothing to diff.")
 		// Best-effort: update CI comment/summary so they don't stay stale.
 		// Failures here are non-fatal since there is nothing to report.
-		_ = runAllOutputModes(ctx, modes, &renderdiff.DiffResult{}, *color, *openDiff, *outputDir, headSHA, baseSHA)
+		_ = runAllOutputModes(ctx, modes, &renderdiff.DiffResult{}, *color, *openDiff, *outputDir, targetSHA, baseSHA)
 		return
 	}
 	slog.Info("Changed files detected", "count", len(changedFiles))
@@ -146,7 +153,7 @@ func main() {
 		fmt.Println("No affected components detected — nothing to diff.")
 		// Best-effort: update CI comment/summary so they don't stay stale.
 		// Failures here are non-fatal since there is nothing to report.
-		_ = runAllOutputModes(ctx, modes, &renderdiff.DiffResult{}, *color, *openDiff, *outputDir, headSHA, baseSHA)
+		_ = runAllOutputModes(ctx, modes, &renderdiff.DiffResult{}, *color, *openDiff, *outputDir, targetSHA, baseSHA)
 		return
 	}
 	slog.Info("Affected component paths detected", "count", totalJobs)
@@ -166,7 +173,7 @@ func main() {
 		logging.Fatal("render-diff failed", "err", err)
 	}
 
-	if hadError := runAllOutputModes(ctx, modes, result, *color, *openDiff, *outputDir, headSHA, baseSHA); hadError {
+	if hadError := runAllOutputModes(ctx, modes, result, *color, *openDiff, *outputDir, targetSHA, baseSHA); hadError {
 		os.Exit(1)
 	}
 }
