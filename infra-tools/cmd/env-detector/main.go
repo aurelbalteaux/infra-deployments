@@ -26,6 +26,7 @@ func main() {
 	var (
 		repoRoot      = flag.String("repo-root", ".", "Path to the repository root")
 		baseRef       = flag.String("base-ref", "main", "Base git ref to compare against")
+		targetRef     = flag.String("target-ref", "", "Target git ref to compare (default: HEAD)")
 		overlaysDir   = flag.String("overlays-dir", "argo-cd-apps/overlays", "Path to overlays directory relative to repo root")
 		dryRun        = flag.Bool("dry-run", false, "Print results without calling GitHub API")
 		prNumber      = flag.Int("pr-number", 0, "PR number to label (required if not --dry-run)")
@@ -62,10 +63,16 @@ func main() {
 		fatal("resolving repo root", "err", err)
 	}
 
-	// Resolve HEAD and base-ref to short commit SHAs for the summary.
-	headSHA, err := git.ResolveRef(ctx, absRepoRoot, "HEAD")
+	// Resolve target ref: default to HEAD
+	effectiveTargetRef := *targetRef
+	if effectiveTargetRef == "" {
+		effectiveTargetRef = "HEAD"
+	}
+
+	// Resolve target and base-ref to short commit SHAs for the summary.
+	targetSHA, err := git.ResolveRef(ctx, absRepoRoot, effectiveTargetRef)
 	if err != nil {
-		fatal("resolving HEAD", "err", err)
+		fatal("resolving target ref", "err", err)
 	}
 	baseSHA, err := git.ResolveRef(ctx, absRepoRoot, *baseRef)
 	if err != nil {
@@ -74,7 +81,7 @@ func main() {
 
 	// Step 1: Get changed files via git diff
 	slog.Info("Getting changed files...")
-	changedFiles, err := git.ChangedFiles(ctx, absRepoRoot, *baseRef)
+	changedFiles, err := git.ChangedFiles(ctx, absRepoRoot, *baseRef, effectiveTargetRef)
 	if err != nil {
 		fatal("getting changed files", "err", err)
 	}
@@ -134,7 +141,7 @@ func main() {
 		labels = append(labels, ghclient.NeedsApprovalProductionLabel)
 	}
 
-	printSummary(result, labels, headSHA, baseSHA)
+	printSummary(result, labels, targetSHA, baseSHA)
 
 	if *dryRun {
 		return
@@ -230,8 +237,8 @@ func (m *multiHandler) WithGroup(name string) slog.Handler {
 }
 
 // printSummary prints the detection results in a human-friendly format.
-func printSummary(result *detector.Result, labels []string, headSHA, baseSHA string) {
-	fmt.Printf("\nHEAD: %s\n", headSHA)
+func printSummary(result *detector.Result, labels []string, targetSHA, baseSHA string) {
+	fmt.Printf("\nTarget: %s\n", targetSHA)
 	fmt.Printf("Base: %s\n", baseSHA)
 
 	fmt.Println("\nChanged files:")
