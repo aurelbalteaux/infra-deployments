@@ -37,13 +37,20 @@ Computes and displays the kustomize render delta for components affected by
 the current branch's changes. Shows what will actually change in each
 environment when your PR merges.
 
+Supports two detection modes:
+- **appset mode** (default): Detects components via ArgoCD ApplicationSets
+- **direct mode**: Finds kustomization directories directly (for simpler repo structures)
+
 ```bash
 # Build the binary
 cd infra-tools
 make build
 
-# Diff against merge-base with main
+# Diff against merge-base with main (appset mode)
 ./bin/render-diff
+
+# Direct mode (simpler repos without ArgoCD ApplicationSets)
+./bin/render-diff --detection-mode=direct --components-dir=components
 
 # Force colored output
 ./bin/render-diff --color always
@@ -62,6 +69,8 @@ DIFFTOOL=meld ./bin/render-diff --open
 ```
 
 Key flags:
+- `--detection-mode` — component detection: `appset` (default), `direct`
+- `--components-dir` — path to components directory for direct mode (default: `components`)
 - `--base-ref` — git ref to compare against (default: merge-base with `main`)
 - `--color` — color output: `auto` (default), `always`, `never`
 - `--open` — open diffs in `$DIFFTOOL` or `git difftool` (directory comparison mode)
@@ -69,6 +78,8 @@ Key flags:
 - `--output-mode` — output format (comma-separated): `local` (default), `ci-summary`, `ci-comment`, `ci-artifact-dir`
 - `--log-file` — write debug logs to a file
 - `--version` — print version and exit
+
+See [docs/direct-mode.md](docs/direct-mode.md) for details on direct mode.
 
 #### CI output modes
 
@@ -97,6 +108,34 @@ rather than CLI flags, so these details are not exposed to local users:
 If any of these are missing, `ci-comment` falls back to printing the comment
 markdown to stdout.
 
+### validate-refs
+
+Validates that all YAML files in a directory tree are referenced in their
+parent `kustomization.yaml` files. Prevents orphaned files from accumulating.
+
+```bash
+# Build the binary
+cd infra-tools
+make build
+
+# Validate all kustomization directories
+./bin/validate-refs --root ./components
+
+# With verbose output
+./bin/validate-refs --root ./components --verbose
+```
+
+Key flags:
+- `--root` — root directory to validate (required)
+- `--verbose` — show count of checked directories
+- `--version` — print version and exit
+
+Exit codes:
+- `0` — all YAML files are properly referenced
+- `1` — found orphaned files or encountered an error
+
+See [docs/validate-refs.md](docs/validate-refs.md) for usage details.
+
 ## Project structure
 
 ```
@@ -104,21 +143,28 @@ infra-tools/
   cmd/
     env-detector/        CLI entry point for env-detector
     render-diff/         CLI entry point for render-diff
+    validate-refs/       CLI entry point for validate-refs
   internal/
     appset/              ArgoCD ApplicationSet YAML parser
     deptree/             Kustomize dependency tree resolver
     detector/            Core detection logic (overlay building, file matching)
+    directpath/          Direct path-based component detection (no ApplicationSets)
     git/                 Git operations (diff, worktree, merge-base)
     github/              GitHub API client (PR labels, PR comments)
-    kustomize/           Kustomize build wrapper
+    kustomize/           Kustomize build wrapper and validation
     renderdiff/          Render diff engine (parallel builds, unified diffs, YAML normalization)
+  docs/
+    direct-mode.md       Documentation for render-diff direct mode
+    render-diff.md       Documentation for render-diff
+    validate-refs.md     Documentation for validate-refs
   Makefile               Build, test, lint targets
 ```
 
-The `internal/` packages are shared between both tools. The `detector` package
+The `internal/` packages are shared between tools. The `detector` package
 provides the detection pipeline that both tools build on: it constructs
 ApplicationSet overlays, resolves kustomize dependency trees, and matches
-changed files to affected components.
+changed files to affected components. The `directpath` package provides an
+alternative detection method for simpler repositories without ApplicationSets.
 
 ## Development
 
